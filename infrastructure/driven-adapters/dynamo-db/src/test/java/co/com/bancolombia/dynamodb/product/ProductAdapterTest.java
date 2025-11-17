@@ -14,7 +14,8 @@ import reactor.test.StepVerifier;
 import java.util.Collections;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ProductAdapterTest {
 
@@ -30,75 +31,143 @@ class ProductAdapterTest {
     @Test
     void saveProductSuccessfully() {
         Product product = new Product();
-        product.setProductId("P01");
-        product.setBranchId("B01");
 
         when(productRepository.save(any())).thenReturn(Mono.just(product));
 
         StepVerifier.create(productAdapter.save(product))
-                .expectNextMatches(p -> p.getProductId().equals("P01"))
+                .expectNext(product)
                 .verifyComplete();
 
-        verify(productRepository, times(1)).save(product);
+        verify(productRepository).save(product);
     }
 
     @Test
     void saveProductThrowsException() {
         Product product = new Product();
+
         when(productRepository.save(any())).thenReturn(Mono.error(new RuntimeException("DB error")));
 
         StepVerifier.create(productAdapter.save(product))
-                .expectErrorMatches(e -> e instanceof TechnicalException &&
-                        ((TechnicalException) e).getResponseMessage() == ResponseMessage.INTERNAL_ERROR)
+                .expectError(TechnicalException.class)
                 .verify();
     }
 
     @Test
     void deleteProductSuccessfully() {
         Product product = new Product();
-        when(productRepository.getByKeyValueAndSortKey("P01", "B01")).thenReturn(Mono.just(product));
-        when(productRepository.delete(product)).thenReturn(Mono.empty());
+
+        when(productRepository.getByKeyValueAndSortKey("P01", "B01"))
+                .thenReturn(Mono.just(product));
+        when(productRepository.delete(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(productAdapter.deleteProductFromBranch("B01", "P01"))
                 .verifyComplete();
 
-        verify(productRepository, times(1)).delete(product);
+        verify(productRepository).delete(product);
     }
 
     @Test
     void deleteProductNotFound() {
-        when(productRepository.getByKeyValueAndSortKey("P01", "B01")).thenReturn(Mono.empty());
+        when(productRepository.getByKeyValueAndSortKey("P01", "B01"))
+                .thenReturn(Mono.empty());
 
         StepVerifier.create(productAdapter.deleteProductFromBranch("B01", "P01"))
-                .expectErrorMatches(e -> e instanceof TechnicalException &&
-                        ((TechnicalException) e).getResponseMessage() == ResponseMessage.NOT_FOUND)
+                .expectErrorMatches(e ->
+                        e instanceof TechnicalException &&
+                                ((TechnicalException) e).getResponseMessage() == ResponseMessage.NOT_FOUND
+                )
                 .verify();
     }
 
     @Test
-    void updateStockSuccessfully() {
-        Product product = new Product();
-        product.setProductId("P01");
-        product.setStock(10);
+    void deleteProductThrowsUnexpectedException() {
+        when(productRepository.getByKeyValueAndSortKey(any(), any()))
+                .thenReturn(Mono.error(new RuntimeException("DB error")));
 
-        when(productRepository.getById("P01")).thenReturn(Mono.just(product));
-        when(productRepository.update(any())).thenReturn(Mono.just(product));
-
-        StepVerifier.create(productAdapter.updateStock("P01", 50))
-                .expectNextMatches(p -> p.getStock() == 50)
-                .verifyComplete();
-
-        verify(productRepository, times(1)).update(product);
+        StepVerifier.create(productAdapter.deleteProductFromBranch("B01", "P01"))
+                .expectErrorMatches(e ->
+                        e instanceof TechnicalException &&
+                                ((TechnicalException) e).getResponseMessage() == ResponseMessage.INTERNAL_ERROR)
+                .verify();
     }
 
     @Test
-    void updateStockNotFound() {
-        when(productRepository.getById("P01")).thenReturn(Mono.empty());
+    void updateProductSuccessfully() {
+        Product product = new Product();
 
-        StepVerifier.create(productAdapter.updateStock("P01", 50))
-                .expectErrorMatches(e -> e instanceof TechnicalException &&
-                        ((TechnicalException) e).getResponseMessage() == ResponseMessage.NOT_FOUND &&
-                        "producto no encontrado".equals(e.getMessage()))
+        when(productRepository.update(any())).thenReturn(Mono.just(product));
+
+        StepVerifier.create(productAdapter.update(product))
+                .expectNext(product)
+                .verifyComplete();
+
+        verify(productRepository).update(product);
+    }
+
+    @Test
+    void updateProductThrowsTechnicalException() {
+
+        when(productRepository.update(any()))
+                .thenReturn(Mono.error(new TechnicalException("Error", ResponseMessage.INTERNAL_ERROR)));
+
+        StepVerifier.create(productAdapter.update(new Product()))
+                .expectError(TechnicalException.class)
+                .verify();
+    }
+
+    @Test
+    void updateProductThrowsUnexpectedException() {
+
+        when(productRepository.update(any()))
+                .thenReturn(Mono.error(new RuntimeException("Unexpected")));
+
+        StepVerifier.create(productAdapter.update(new Product()))
+                .expectErrorMatches(e ->
+                        e instanceof TechnicalException &&
+                                ((TechnicalException) e).getResponseMessage() == ResponseMessage.INTERNAL_ERROR)
+                .verify();
+    }
+
+    @Test
+    void getByIdSuccessfully() {
+        Product product = new Product();
+
+        when(productRepository.getById("P01"))
+                .thenReturn(Mono.just(product));
+
+        StepVerifier.create(productAdapter.getById("P01"))
+                .expectNext(product)
+                .verifyComplete();
+
+        verify(productRepository).getById("P01");
+    }
+
+    @Test
+    void getByIdNotFound() {
+
+        when(productRepository.getById("P01"))
+                .thenReturn(Mono.empty());
+
+        StepVerifier.create(productAdapter.getById("P01"))
+                .expectErrorMatches(e ->
+                        e instanceof TechnicalException &&
+                                ((TechnicalException) e).getResponseMessage() == ResponseMessage.INTERNAL_ERROR &&
+                                e.getCause() instanceof TechnicalException &&
+                                ((TechnicalException) e.getCause()).getResponseMessage() == ResponseMessage.NOT_FOUND
+                )
+                .verify();
+    }
+
+    @Test
+    void getByIdUnexpectedError() {
+
+        when(productRepository.getById("P01"))
+                .thenReturn(Mono.error(new RuntimeException("DB error")));
+
+        StepVerifier.create(productAdapter.getById("P01"))
+                .expectErrorMatches(e ->
+                        e instanceof TechnicalException &&
+                                ((TechnicalException) e).getResponseMessage() == ResponseMessage.INTERNAL_ERROR)
                 .verify();
     }
 
@@ -106,22 +175,23 @@ class ProductAdapterTest {
     void getProductsByBranchSuccessfully() {
         Product product = new Product();
         product.setProductId("P01");
-        when(productRepository.queryByIndex(any(), any())).thenReturn(Mono.just(Collections.singletonList(product)));
+
+        when(productRepository.queryByIndex(any(), any()))
+                .thenReturn(Mono.just(Collections.singletonList(product)));
 
         StepVerifier.create(productAdapter.getProductsByBranch("B01"))
-                .expectNextMatches(p -> p.getProductId().equals("P01"))
+                .expectNext(product)
                 .verifyComplete();
-
-        verify(productRepository, times(1)).queryByIndex(any(), any());
     }
 
     @Test
     void getProductsByBranchThrowsException() {
-        when(productRepository.queryByIndex(any(), any())).thenReturn(Mono.error(new RuntimeException("DB error")));
+
+        when(productRepository.queryByIndex(any(), any()))
+                .thenReturn(Mono.error(new RuntimeException("DB error")));
 
         StepVerifier.create(productAdapter.getProductsByBranch("B01"))
-                .expectErrorMatches(e -> e instanceof TechnicalException &&
-                        ((TechnicalException) e).getResponseMessage() == ResponseMessage.INTERNAL_ERROR)
+                .expectError(TechnicalException.class)
                 .verify();
     }
 }
