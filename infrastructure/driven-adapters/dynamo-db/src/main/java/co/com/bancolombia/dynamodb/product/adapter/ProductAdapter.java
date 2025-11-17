@@ -58,22 +58,26 @@ public class ProductAdapter implements ProductGateway {
     }
 
     @Override
-    public Mono<Product> updateStock(String productId, Integer stock) {
-        return productRepository.getById(productId)
-                .switchIfEmpty(Mono.error(new TechnicalException("producto no encontrado", ResponseMessage.NOT_FOUND)))
-                .flatMap(product -> {
-                    product.setStock(stock);
-                    return productRepository.update(product);
-                })
+    public Mono<Product> update(Product product) {
+        return productRepository.update(product)
                 .onErrorMap(error -> {
                     if (error instanceof TechnicalException) {
                         return error;
                     }
                     return new TechnicalException(error, ResponseMessage.INTERNAL_ERROR);
                 })
-                .doOnSubscribe(sub -> log.info("Actualizar stock", kv("productId", productId), kv("stock", stock)));
+                .doOnSubscribe(sub -> log.info("Actualizar producto", kv("product", product)));
     }
 
+    @Override
+    public Mono<Product> getById(String productId) {
+
+        return productRepository.getById(productId)
+                .switchIfEmpty(Mono.error(new TechnicalException("producto no encontrado", ResponseMessage.NOT_FOUND)))
+                .doOnSuccess(product -> log.info("Success get product in DynamoDB - Found {}", product))
+                .doOnError(error -> log.error("Error get product in DynamoDB", error))
+                .onErrorMap(exception -> new TechnicalException(exception, ResponseMessage.INTERNAL_ERROR));
+    }
 
     @Override
     public Flux<Product> getProductsByBranch(String branchId) {
@@ -81,8 +85,8 @@ public class ProductAdapter implements ProductGateway {
                 .keyEqualTo(k -> k.partitionValue(branchId));
 
         return getBranchesByQuery(query)
-                .doOnSuccess(list -> log.info("Success get keys expired in DynamoDB - Found {}", list.size()))
-                .doOnError(error -> log.error("Error get keys expired in DynamoDB", error))
+                .doOnSuccess(list -> log.info("Success get branch in DynamoDB - Found {}", list.size()))
+                .doOnError(error -> log.error("Error get branch in DynamoDB", error))
                 .onErrorMap(exception -> new TechnicalException(exception, ResponseMessage.INTERNAL_ERROR))
                 .flatMapMany(Flux::fromIterable);
     }

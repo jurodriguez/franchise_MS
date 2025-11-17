@@ -9,7 +9,9 @@ public interface ProductGateway {
 
     Mono<Void> deleteProductFromBranch(String branchId, String productId);
 
-    Mono<Product> updateStock(String productId, Integer stock);
-
     Flux<Product> getProductsByBranch(String franchiseId);
+
+    Mono<Product> getById(String productId);
+
+    Mono<Product> update(Product product);
 }

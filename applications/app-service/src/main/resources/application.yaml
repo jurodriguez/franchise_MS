@@ -24,7 +24,7 @@ cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
 aws:
   dynamodb:
-    endpoint: "http://localhost:8000"
+    endpoint: "http://localhost:4566"
     tables:
       franchise-data: "franchise-data"
       branch-data: "branch-data"

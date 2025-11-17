@@ -23,7 +23,11 @@ public class ProductUseCase {
     }
 
     public Mono<Product> updateStock(String productId, Integer stock) {
-        return productGateway.updateStock(productId, stock);
+        return productGateway.getById(productId)
+                .flatMap(product -> {
+                    product.setStock(stock);
+                    return productGateway.update(product);
+                });
     }
 
     public Flux<Product> findTopProductsByBranch(String franchiseId) {

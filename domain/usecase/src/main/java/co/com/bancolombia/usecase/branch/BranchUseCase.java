@@ -11,9 +11,6 @@ public class BranchUseCase {
     private final BranchGateway branchGateway;
 
     public Mono<Branch> create(Branch branch) {
-        if (branch == null || branch.getBranchId() == null) {
-            return Mono.error(new IllegalArgumentException("Branch or branchId cannot be null"));
-        }
         return branchGateway.save(branch);
     }
 
